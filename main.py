@@ -1,7 +1,5 @@
 import pygame as pg
 import pygame_gui as gui
-import os
-import pytest
 
 #  Class for a solar system with position
 
@@ -10,16 +8,18 @@ class SolarSystem:
     def __init__(self, position: tuple[int, int]):
         self.position = position
         self.posx, self.posy = position
+        self.hyperlanes = []
 
     def setID(self, id: int):
-        self.id = str(id)
+        self.id = str(id + 1)
 
-        
+    def add_hyperlane(self, hyperlane):
+        self.hyperlanes.append(hyperlane)
 
 
 # Class for hyperlanes with endpoint and startpoint being solar systems
 class Hyperlane:
-    def __init__(self, starting_system, ending_system):
+    def __init__(self, starting_system: SolarSystem, ending_system: SolarSystem):
         self.starting_system = starting_system
         self.ending_system = ending_system
 
@@ -36,7 +36,10 @@ def main():
 
 
 def running(screen, hyperlanes, solar_systems):
+    star_mode = True
+    drawing = False
     while True:
+        screen.fill((0, 0, 0))
         [
             pg.draw.circle(screen, (255, 255, 255), system.position, 10)
             for system in solar_systems
@@ -51,6 +54,113 @@ def running(screen, hyperlanes, solar_systems):
             )
             for hyperlane in hyperlanes
         ]
+        pg.draw.circle(
+            screen,
+            (255, 255, 255),
+            (screen.get_width() // 2, screen.get_height() // 2),
+            30,
+            1,
+        )
+        pg.draw.circle(
+            screen,
+            (255, 255, 255),
+            (screen.get_width() // 2, screen.get_height() // 2),
+            450,
+            1,
+        )
+
+        # Event handling
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                return
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_q:
+                    return
+                if event.key == pg.K_s and not drawing:
+                    star_mode = not star_mode
+                if event.key == pg.K_RETURN:
+                    save(hyperlanes, solar_systems, "SSGALAXY")
+            if star_mode:
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        if (
+                            30
+                            < (
+                                (event.pos[0] - screen.get_width() / 2) ** 2
+                                + (event.pos[1] - screen.get_height() / 2) ** 2
+                            )
+                            ** 0.5
+                            < 450
+                        ):
+                            solar_systems.append(SolarSystem(event.pos))
+                    if event.button == 3:
+                        for system in solar_systems:
+                            if (
+                                system.position[0] - 10
+                                < event.pos[0]
+                                < system.position[0] + 10
+                            ):
+                                if (
+                                    system.position[1] - 10
+                                    < event.pos[1]
+                                    < system.position[1] + 10
+                                ):
+                                    solar_systems.remove(system)
+                                    for hyperlane in system.hyperlanes:
+                                        if hyperlane in hyperlanes:
+                                            hyperlanes.remove(hyperlane)
+            if not star_mode:
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        # Check if the mouse is over a star
+                        for system in solar_systems:
+                            if (
+                                system.position[0] - 10
+                                < event.pos[0]
+                                < system.position[0] + 10
+                            ):
+                                if (
+                                    system.position[1] - 10
+                                    < event.pos[1]
+                                    < system.position[1] + 10
+                                ):
+                                    starting_system = system
+                                    drawing = True
+                    if event.button == 3:
+                        for hyperlane in hyperlanes:
+                            if (
+                                hyperlane.starting_system.position[0] - 10
+                                < event.pos[0]
+                                < hyperlane.starting_system.position[0] + 10
+                            ):
+                                if (
+                                    hyperlane.starting_system.position[1] - 10
+                                    < event.pos[1]
+                                    < hyperlane.starting_system.position[1] + 10
+                                ):
+                                    hyperlanes.remove(hyperlane)
+                if event.type == pg.MOUSEBUTTONUP:
+                    drawing = False
+                    for system in solar_systems:
+                        if (
+                            system.position[0] - 10
+                            < event.pos[0]
+                            < system.position[0] + 10
+                        ):
+                            if (
+                                system.position[1] - 10
+                                < event.pos[1]
+                                < system.position[1] + 10
+                            ):
+                                new_hyperlane = Hyperlane(starting_system, system)
+                                hyperlanes.append(new_hyperlane)
+                                starting_system.add_hyperlane(new_hyperlane)
+                                system.add_hyperlane(new_hyperlane)
+        if drawing:
+            pg.draw.line(
+                screen, (255, 255, 255), starting_system.position, pg.mouse.get_pos(), 2
+            )
+
         pg.display.update()
 
 
@@ -58,9 +168,8 @@ def save(
     hyperlanes: list[Hyperlane],
     solar_systems: list[SolarSystem],
     name: str,
-    core_radius: int,
 ):
-    
+
     for iterator, system in enumerate(solar_systems):
         system.setID(iterator)
 
@@ -85,7 +194,7 @@ def save(
         file.write("    num_gateways = {min = 0 max = 5}\n")
         file.write("    num_gateways_default = 1\n")
         file.write("    random_hyperlanes = no\n")
-        file.write(f"    core_radius = {core_radius}\n")
+        file.write("    core_radius = 30\n")
         [
             file.write(
                 f'    system = {{ id = "{system.id}" name = "" position = {{ x = {system.posx} y = {system.posy} }} }}\n'
@@ -103,91 +212,4 @@ def save(
 
 if __name__ == "__main__":
 
-    # main()
-
-    solar_systems = [
-        SolarSystem((100, 100), "1"),
-        SolarSystem((100, 200), "2"),
-        SolarSystem((200, 100), "3"),
-        SolarSystem((200, 200), "4"),
-    ]
-    hyperlanes = [
-        Hyperlane(solar_systems[0], solar_systems[1]),
-        Hyperlane(solar_systems[0], solar_systems[2]),
-        Hyperlane(solar_systems[1], solar_systems[3]),
-        Hyperlane(solar_systems[2], solar_systems[3]),
-    ]
-    save(hyperlanes, solar_systems, "test", 100)
-
-
-# for event in pg.event.get():
-#             if event.type == pg.QUIT:
-#                 return
-#             if event.type == pg.KEYDOWN:
-#                 if event.key == pg.K_q:
-#                     return
-#                 if event.type == pg.K_b:
-#                     for system in solar_systems:
-#                         if (
-#                             np.linalg.norm(
-#                                 np.array(system.position) - np.array(pg.mouse.get_pos())
-#                             )
-#                             < 10
-#                         ):
-#                             start_system = system
-#                             break
-#                     else:
-#                         start_system = None
-#                     print(start_system)
-
-#                 # Select endpoint solar system for hyperlane and create hyperlane
-
-#                 if event.type == pg.K_a:
-#                     for system in solar_systems:
-#                         if (
-#                             np.linalg.norm(
-#                                 np.array(system.position) - np.array(pg.mouse.get_pos())
-#                             )
-#                             < 10
-#                         ):
-#                             end_system = system
-#                             break
-#                     else:
-#                         end_system = None
-#                     print(end_system)
-#                     if start_system is not None and end_system is not None:
-#                         hyperlanes.append(Hyperlane(start_system, end_system))
-#                     start_system = None
-#                     end_system = None
-
-#         # Add solar systems with mouse click
-#         if pg.mouse.get_pressed()[0]:
-#             solar_systems.append(SolarSystem(pg.mouse.get_pos()))
-
-#         # Remove solar systems with right mouse click
-#         if pg.mouse.get_pressed()[2]:
-#             for system in solar_systems:
-#                 if (
-#                     np.linalg.norm(
-#                         np.array(system.position) - np.array(pg.mouse.get_pos())
-#                     )
-#                     < 10
-#                 ):
-#                     solar_systems.remove(system)
-#                     break
-
-#         # Draws all solar systems
-#         screen.fill((0, 0, 0))
-#         for system in solar_systems:
-#             pg.draw.circle(screen, (255, 255, 255), system.position, 10)
-
-#         # Draws all hyperlanes
-#         for hyperlane in hyperlanes:
-#             if hyperlane.startpoint is not None and hyperlane.endpoint is not None:
-#                 pg.draw.line(
-#                     screen,
-#                     (255, 255, 255),
-#                     hyperlane.startpoint.position,
-#                     hyperlane.endpoint.position,
-#                     2,
-#                 )
+    main()
